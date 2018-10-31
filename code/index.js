@@ -7,7 +7,6 @@
 var http = require('http');
 var https = require('https');
 var url = require('url');
-var StringDecoder = require('string_decoder').StringDecoder;
 var config = require('./config'); 
 var fs = require('fs');
 
@@ -38,8 +37,9 @@ httpsServer.listen(config.httpsPort, function(){
 }); 
 
 //Server logic 
-var unifiedServer = function (req, res) {
-        
+var unifiedServer = function (req, res) 
+{
+        console.log('unified server called');
         //set url and parse it
         var parsedURL = url.parse(req.url,true);
         //get path from url
@@ -49,17 +49,13 @@ var unifiedServer = function (req, res) {
         var method = req.method.toLowerCase();
         var queryStringObject = parsedURL.query; 
         var headers = req.headers;
-    
-        //get payload if any 
-        var decoder = new StringDecoder('utf-8');
-        var buffer = '';
+        
         req.on('data', function(data){
-            buffer += decoder.write(data);
+            console.log('Data incoming');
         })
-    
+        
         req.on('end', function(){
-            buffer += decoder.end(); 
-            
+
             //set up handler to match the path trimmed from the path
             var chosenHandler = typeof(router[trimmedpath]) !== 'undefined' ? router[trimmedpath] : handlers.notFound;
             var username = '';
@@ -71,33 +67,35 @@ var unifiedServer = function (req, res) {
                 //check if parameter 'username' is available. Otherwise set username to 'undefined'
                 username = headers['username'] != 'undefined' ? headers['username'] : 'undefined';
             }
+            
             //check if username has been sent as a query
             else if(method == 'get')
             {
                 //we know the supposed name of the query parameter. Retrieve it and set username to undefined it it don't exist 
                 username = queryStringObject['username'] != 'undefined' ? queryStringObject['username'] :'undefined'; 
             }
- 
+            
             var data = {
                 'trimmedpath' : trimmedpath,
                 'queryStringObject' : queryStringObject, 
                 'method' : method, 
-                'headers' : headers, 
-                'payload' : buffer, 
+                'headers' : headers,
                 'username' : username
             }
     
-            chosenHandler(data, function(statusCode,payload){
-                statusCode = typeof(statusCode) == 'number' ? statusCode : 200; 
-                payload = typeof(payload) == 'object' ? payload : {};
+            chosenHandler(data, function(statusCode, replymessage)
+            {
+                statusCode = typeof(statusCode) == 'number' ? statusCode : 200;
+                //check for replymessage
+                message = typeof(replymessage) == 'object' ? replymessage : {};
     
-                //convert payload to at string
-                var payloadString = JSON.stringify(payload);
+                //convert message to a string
+                var messagestring = JSON.stringify(message);
                 res.setHeader('Content-Type','application/json');
                 res.writeHead(statusCode);
-                res.end(payloadString);
-                   
-                console.log('Reply: ', statusCode,payloadString);
+                res.end(messagestring);
+                      
+                console.log('Return status and message: ', statusCode,messagestring);
             })
         })
 };
@@ -107,6 +105,7 @@ var handlers =  {};
 
 handlers.hello = function (data, callback)
 {
+    //TODO do some logic for 'undefined' name cases 
     callback(200, {'response' : "Hello " + data.username + " and welcome on this specific endpoint"});
 }
 
@@ -117,5 +116,5 @@ handlers.notFound = function(data, callback)
 
 //define routers 
 var router = {
-        'hello' :  handlers.hello
+    'hello' :  handlers.hello
 };
